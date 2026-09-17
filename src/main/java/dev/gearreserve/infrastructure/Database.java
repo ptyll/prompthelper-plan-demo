@@ -118,6 +118,18 @@ public final class Database {
         }
     }
 
+    public Optional<Reservation> approveReservation(long id) throws SQLException {
+        String sql = "UPDATE reservations SET status = 'Approved' WHERE id = ?";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            if (statement.executeUpdate() == 0) {
+                return Optional.empty();
+            }
+        }
+        return findReservation(id);
+    }
+
     public List<Reservation> listReservations() throws SQLException {
         String sql = """
                 SELECT id, equipment_id, requester_alias, start_utc, end_utc, status

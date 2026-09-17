@@ -63,7 +63,12 @@ public final class App {
     }
 
     private static void handleReservations(HttpExchange exchange, Database database) throws IOException {
-        if (!"POST".equals(exchange.getRequestMethod()) || !"/reservations".equals(exchange.getRequestURI().getPath())) {
+        String path = exchange.getRequestURI().getPath();
+        if ("POST".equals(exchange.getRequestMethod()) && path.matches("/reservations/\\d+/approve")) {
+            approveReservation(exchange, database, path);
+            return;
+        }
+        if (!"POST".equals(exchange.getRequestMethod()) || !"/reservations".equals(path)) {
             exchange.getResponseHeaders().set("Allow", "POST");
             exchange.sendResponseHeaders(405, -1);
             exchange.close();
@@ -89,6 +94,20 @@ public final class App {
             sendJson(exchange, 400, new ApiError("invalid_reservation"));
         } catch (SQLException exception) {
             throw new IOException("Could not create reservation", exception);
+        }
+    }
+
+    private static void approveReservation(HttpExchange exchange, Database database, String path) throws IOException {
+        long reservationId = Long.parseLong(path.substring("/reservations/".length(), path.length() - "/approve".length()));
+        try {
+            Reservation reservation = database.approveReservation(reservationId).orElse(null);
+            if (reservation == null) {
+                sendJson(exchange, 404, new ApiError("reservation_not_found"));
+                return;
+            }
+            sendJson(exchange, 200, reservation);
+        } catch (SQLException exception) {
+            throw new IOException("Could not approve reservation", exception);
         }
     }
 
