@@ -7,7 +7,7 @@ The repository is a **local teaching demo**, not a production service:
 - it has no authentication or authorization;
 - it uses only fictional aliases and seeded equipment;
 - it is not deployed as a public internet service;
-- the current baseline exposes only `GET /health`; reservation endpoints are intentionally reserved for later implementation phases.
+- the current implementation exposes the bounded endpoints documented below and no unrelated features.
 
 ## Prerequisites
 
@@ -68,7 +68,7 @@ Startup creates missing tables and inserts the three deterministic equipment row
 | 2 | Termokamera | yes |
 | 3 | Sada bezdrátových mikrofonů | no |
 
-## Domain contract for later phases
+## Implemented domain contract
 
 ### Equipment
 
@@ -90,9 +90,9 @@ Rules:
 - `startUtc` must be earlier than `endUtc`;
 - `requesterAlias` is fictional demo data, not personal data.
 
-## Planned API contract
+## Implemented API contract
 
-These endpoints are intentionally **not implemented in the baseline**. They define the bounded work for subsequent PromptHelper plan phases:
+These endpoints are implemented and covered by the repository's Maven verification suite:
 
 | Method | Route | Contract |
 |---|---|---|
