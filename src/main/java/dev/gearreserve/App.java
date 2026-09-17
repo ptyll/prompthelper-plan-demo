@@ -1,7 +1,13 @@
 package dev.gearreserve;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import dev.gearreserve.domain.Reservation;
+import dev.gearreserve.domain.ReservationStatus;
 import dev.gearreserve.infrastructure.Database;
 
 import java.io.IOException;
@@ -9,9 +15,15 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.sql.SQLException;
+import java.time.Instant;
 import java.util.concurrent.Executors;
 
 public final class App {
+    private static final ObjectMapper JSON = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
     private App() {
     }
 
@@ -29,6 +41,7 @@ public final class App {
 
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         server.createContext("/health", App::handleHealth);
+        server.createContext("/reservations", exchange -> handleReservations(exchange, database));
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         return server;
     }
@@ -47,6 +60,51 @@ public final class App {
         try (OutputStream output = exchange.getResponseBody()) {
             output.write(body);
         }
+    }
+
+    private static void handleReservations(HttpExchange exchange, Database database) throws IOException {
+        if (!"POST".equals(exchange.getRequestMethod()) || !"/reservations".equals(exchange.getRequestURI().getPath())) {
+            exchange.getResponseHeaders().set("Allow", "POST");
+            exchange.sendResponseHeaders(405, -1);
+            exchange.close();
+            return;
+        }
+
+        try {
+            CreateReservationRequest request = JSON.readValue(exchange.getRequestBody(), CreateReservationRequest.class);
+            var equipment = database.findEquipment(request.equipmentId()).orElse(null);
+            if (equipment == null) {
+                sendJson(exchange, 404, new ApiError("equipment_not_found"));
+                return;
+            }
+            Reservation reservation = database.createReservation(
+                    request.equipmentId(),
+                    request.requesterAlias(),
+                    request.startUtc(),
+                    request.endUtc(),
+                    equipment.requiresApproval() ? ReservationStatus.Pending : ReservationStatus.Approved
+            );
+            sendJson(exchange, 201, reservation);
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            sendJson(exchange, 400, new ApiError("invalid_reservation"));
+        } catch (SQLException exception) {
+            throw new IOException("Could not create reservation", exception);
+        }
+    }
+
+    private static void sendJson(HttpExchange exchange, int status, Object value) throws IOException {
+        byte[] body = JSON.writeValueAsBytes(value);
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(status, body.length);
+        try (OutputStream output = exchange.getResponseBody()) {
+            output.write(body);
+        }
+    }
+
+    private record CreateReservationRequest(long equipmentId, String requesterAlias, Instant startUtc, Instant endUtc) {
+    }
+
+    private record ApiError(String error) {
     }
 
     private static int readPort() {
