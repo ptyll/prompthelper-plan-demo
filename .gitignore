@@ -1,0 +1,14 @@
+target/
+.maven-user-home/
+data/
+*.db
+*.db-shm
+*.db-wal
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
