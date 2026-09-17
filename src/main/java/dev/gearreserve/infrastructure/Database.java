@@ -138,12 +138,30 @@ public final class Database {
         try (Connection connection = open();
              Statement statement = connection.createStatement();
              ResultSet result = statement.executeQuery(sql)) {
-            List<Reservation> reservations = new ArrayList<>();
-            while (result.next()) {
-                reservations.add(readReservation(result));
-            }
-            return List.copyOf(reservations);
+            return readReservations(result);
         }
+    }
+
+    public List<Reservation> listReservations(ReservationStatus status) throws SQLException {
+        String sql = """
+                SELECT id, equipment_id, requester_alias, start_utc, end_utc, status
+                FROM reservations WHERE status = ? ORDER BY id
+                """;
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, status.name());
+            try (ResultSet result = statement.executeQuery()) {
+                return readReservations(result);
+            }
+        }
+    }
+
+    private static List<Reservation> readReservations(ResultSet result) throws SQLException {
+        List<Reservation> reservations = new ArrayList<>();
+        while (result.next()) {
+            reservations.add(readReservation(result));
+        }
+        return List.copyOf(reservations);
     }
 
     private static Reservation readReservation(ResultSet result) throws SQLException {

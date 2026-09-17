@@ -68,9 +68,8 @@ public final class App {
             approveReservation(exchange, database, path);
             return;
         }
-        if ("GET".equals(exchange.getRequestMethod()) && "/reservations".equals(path)
-                && exchange.getRequestURI().getRawQuery() == null) {
-            listReservations(exchange, database);
+        if ("GET".equals(exchange.getRequestMethod()) && "/reservations".equals(path)) {
+            listReservations(exchange, database, exchange.getRequestURI().getRawQuery());
             return;
         }
         if (!"POST".equals(exchange.getRequestMethod()) || !"/reservations".equals(path)) {
@@ -102,9 +101,23 @@ public final class App {
         }
     }
 
-    private static void listReservations(HttpExchange exchange, Database database) throws IOException {
+    private static void listReservations(HttpExchange exchange, Database database, String rawQuery) throws IOException {
+        ReservationStatus status;
+        if (rawQuery == null) {
+            status = null;
+        } else if ("status=Pending".equals(rawQuery)) {
+            status = ReservationStatus.Pending;
+        } else if ("status=Approved".equals(rawQuery)) {
+            status = ReservationStatus.Approved;
+        } else {
+            sendJson(exchange, 400, new ApiError("invalid_status"));
+            return;
+        }
+
         try {
-            sendJson(exchange, 200, database.listReservations());
+            sendJson(exchange, 200, status == null
+                    ? database.listReservations()
+                    : database.listReservations(status));
         } catch (SQLException exception) {
             throw new IOException("Could not list reservations", exception);
         }

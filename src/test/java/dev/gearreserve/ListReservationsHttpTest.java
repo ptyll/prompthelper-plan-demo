@@ -48,12 +48,45 @@ class ListReservationsHttpTest {
 
     @Test
     void unfilteredListReturnsAllReservationsInIdOrder() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/reservations")).GET().build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = get("/reservations");
 
         assertEquals(200, response.statusCode());
         int first = response.body().indexOf("\"requesterAlias\":\"demo-prvni\"");
         int second = response.body().indexOf("\"requesterAlias\":\"demo-druhy\"");
         assertTrue(first >= 0 && second > first, response.body());
+    }
+
+    @Test
+    void pendingFilterReturnsOnlyPendingReservations() throws Exception {
+        HttpResponse<String> response = get("/reservations?status=Pending");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"requesterAlias\":\"demo-prvni\""), response.body());
+        assertTrue(response.body().contains("\"status\":\"Pending\""), response.body());
+        assertTrue(!response.body().contains("\"requesterAlias\":\"demo-druhy\""), response.body());
+    }
+
+    @Test
+    void approvedFilterReturnsOnlyApprovedReservations() throws Exception {
+        HttpResponse<String> response = get("/reservations?status=Approved");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"requesterAlias\":\"demo-druhy\""), response.body());
+        assertTrue(response.body().contains("\"status\":\"Approved\""), response.body());
+        assertTrue(!response.body().contains("\"requesterAlias\":\"demo-prvni\""), response.body());
+    }
+
+    @Test
+    void differentlyCasedStatusFilterReturnsBadRequestInsteadOfMethodNotAllowed() throws Exception {
+        HttpResponse<String> response = get("/reservations?status=pending");
+
+        assertEquals(400, response.statusCode());
+        assertEquals("{\"error\":\"invalid_status\"}", response.body());
+        assertTrue(response.headers().firstValue("Allow").isEmpty());
+    }
+
+    private HttpResponse<String> get(String path) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path)).GET().build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 }
