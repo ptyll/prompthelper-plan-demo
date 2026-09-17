@@ -1,6 +1,11 @@
 package dev.gearreserve.infrastructure;
 
 import dev.gearreserve.domain.Equipment;
+import dev.gearreserve.domain.Reservation;
+import dev.gearreserve.domain.ReservationStatus;
+
+import java.time.Instant;
+import java.util.Optional;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,6 +63,86 @@ public final class Database {
             }
             return List.copyOf(equipment);
         }
+    }
+
+    public Optional<Equipment> findEquipment(long id) throws SQLException {
+        String sql = "SELECT id, name, requires_approval FROM equipment WHERE id = ?";
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next()
+                        ? Optional.of(new Equipment(result.getLong("id"), result.getString("name"),
+                        result.getBoolean("requires_approval")))
+                        : Optional.empty();
+            }
+        }
+    }
+
+    public Reservation createReservation(long equipmentId, String requesterAlias, Instant startUtc,
+                                         Instant endUtc, ReservationStatus status) throws SQLException {
+        Reservation candidate = new Reservation(0, equipmentId, requesterAlias, startUtc, endUtc, status);
+        String sql = """
+                INSERT INTO reservations(equipment_id, requester_alias, start_utc, end_utc, status)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            statement.setLong(1, candidate.equipmentId());
+            statement.setString(2, candidate.requesterAlias());
+            statement.setString(3, candidate.startUtc().toString());
+            statement.setString(4, candidate.endUtc().toString());
+            statement.setString(5, candidate.status().name());
+            statement.executeUpdate();
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (!keys.next()) {
+                    throw new SQLException("SQLite did not return a reservation id");
+                }
+                return new Reservation(keys.getLong(1), candidate.equipmentId(), candidate.requesterAlias(),
+                        candidate.startUtc(), candidate.endUtc(), candidate.status());
+            }
+        }
+    }
+
+    public Optional<Reservation> findReservation(long id) throws SQLException {
+        String sql = """
+                SELECT id, equipment_id, requester_alias, start_utc, end_utc, status
+                FROM reservations WHERE id = ?
+                """;
+        try (Connection connection = open();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(readReservation(result)) : Optional.empty();
+            }
+        }
+    }
+
+    public List<Reservation> listReservations() throws SQLException {
+        String sql = """
+                SELECT id, equipment_id, requester_alias, start_utc, end_utc, status
+                FROM reservations ORDER BY id
+                """;
+        try (Connection connection = open();
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql)) {
+            List<Reservation> reservations = new ArrayList<>();
+            while (result.next()) {
+                reservations.add(readReservation(result));
+            }
+            return List.copyOf(reservations);
+        }
+    }
+
+    private static Reservation readReservation(ResultSet result) throws SQLException {
+        return new Reservation(
+                result.getLong("id"),
+                result.getLong("equipment_id"),
+                result.getString("requester_alias"),
+                Instant.parse(result.getString("start_utc")),
+                Instant.parse(result.getString("end_utc")),
+                ReservationStatus.valueOf(result.getString("status"))
+        );
     }
 
     private Connection open() throws SQLException {
