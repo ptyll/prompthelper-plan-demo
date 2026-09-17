@@ -68,6 +68,11 @@ public final class App {
             approveReservation(exchange, database, path);
             return;
         }
+        if ("GET".equals(exchange.getRequestMethod()) && "/reservations".equals(path)
+                && exchange.getRequestURI().getRawQuery() == null) {
+            listReservations(exchange, database);
+            return;
+        }
         if (!"POST".equals(exchange.getRequestMethod()) || !"/reservations".equals(path)) {
             exchange.getResponseHeaders().set("Allow", "POST");
             exchange.sendResponseHeaders(405, -1);
@@ -94,6 +99,14 @@ public final class App {
             sendJson(exchange, 400, new ApiError("invalid_reservation"));
         } catch (SQLException exception) {
             throw new IOException("Could not create reservation", exception);
+        }
+    }
+
+    private static void listReservations(HttpExchange exchange, Database database) throws IOException {
+        try {
+            sendJson(exchange, 200, database.listReservations());
+        } catch (SQLException exception) {
+            throw new IOException("Could not list reservations", exception);
         }
     }
 
