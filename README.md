@@ -1,13 +1,19 @@
 # GearReserve
 
-GearReserve is a deliberately small Java 21 API used in a Czech developer presentation about implementing a plan with an AI agent through PromptHelper MCP.
+GearReserve is a **small local teaching API** in Java 21, used in a Czech developer presentation about implementing a plan with an AI agent through PromptHelper MCP. It is not a complete reservation system or a production service.
 
-The repository is a **local teaching demo**, not a production service:
+**Want to try it yourself? Start with [`docs/try-it.md`](docs/try-it.md)** — one task, two or three phases, one fresh conversation.
+
+For the presentation story and copyable prompts, see the [PromptHelper demo walkthrough](docs/demo-walkthrough.md). The current `main` already includes the reservation status filter; the walkthrough explains the staged story, not a new replay of that change. For your own experiment, choose a new task and your own plan.
+
+The repository has deliberately narrow boundaries:
 
 - it has no authentication or authorization;
 - it uses only fictional aliases and seeded equipment;
 - it is not deployed as a public internet service;
 - the current implementation exposes the bounded endpoints documented below and no unrelated features.
+
+For the opt-in local Kafka extension (outbox publisher, idempotent notification consumer, and CLI listing), see [messaging usage](docs/messaging-usage.md). The standard API and `verify` do not require a broker. See [real Kafka integration and recovery tests](docs/kafka-tests.md) for the opt-in verification profile.
 
 ## Prerequisites
 
@@ -92,16 +98,20 @@ Rules:
 
 ## Implemented API contract
 
-These endpoints are implemented and covered by the repository's Maven verification suite:
+The current `main` implements the following routes in [`App.java`](src/main/java/dev/gearreserve/App.java):
 
 | Method | Route | Contract |
 |---|---|---|
-| `GET` | `/equipment` | List seeded equipment. |
-| `POST` | `/reservations` | Create a reservation using the approval and interval rules above. |
-| `GET` | `/reservations?status=Pending|Approved` | List reservations; optional status filter. Unknown filter returns `400`. |
-| `POST` | `/reservations/{id}/approve` | Approve a pending reservation. Repeating approval is idempotent. Unknown ID returns `404`. |
+| `GET` | `/health` | Return `200` with `{"status":"ok"}`. |
+| `POST` | `/reservations` | Create a reservation using the approval and interval rules above; return `201`. Unknown equipment ID returns `404`. |
+| `GET` | `/reservations` | List all reservations in ID order. Optional query: exactly `status=Pending` or `status=Approved`; other query strings return `400`. |
+| `POST` | `/reservations/{id}/approve` | Approve a reservation; return `200`. Repeating approval is idempotent. Unknown numeric ID returns `404`. |
 
 Invalid intervals return `400`. No additional domain features are part of this demo.
+
+**`GET /equipment` was part of the original plan, but is not registered in `App.java` and is not an available HTTP endpoint.** The seeded equipment and the database method `listEquipment()` do not imply an HTTP route. Use the fixed demo IDs listed above when creating reservations.
+
+See [the API contract](docs/api-contract.md) for the explicit distinction between the original planned scope and the current implementation. This documentation describes source inspection, not a new test run; the build and test commands above let you verify your own checkout.
 
 ## Repository boundaries
 
@@ -109,4 +119,4 @@ This public repository contains only the new GearReserve demo code and fictional
 
 ## License
 
-No license has been selected yet. All rights remain with the repository owner until an explicit license is added.
+[MIT](LICENSE).
